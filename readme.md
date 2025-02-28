@@ -66,7 +66,7 @@ Visit http://localhost:3000 to access LearnFast! 🎉
 🔹 Gamification – Encourage consistent learning through rewards.
 
 🤝 Contributing
-We welcome contributions! To contribute:
+We welcome contributions! To contribute-
 
 Fork the repo & create a new branch.
 Make your changes & test thoroughly.
