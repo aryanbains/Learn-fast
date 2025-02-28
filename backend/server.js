@@ -8,7 +8,7 @@ const authMiddleware = require('./middleware/auth');
 
 const app = express();
 
-// Connect to MongoDB
+// Connect to MongoDB server
 connectDB();
 
 // Middleware
