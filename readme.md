@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# LearnFast
- 
-=======
 # LearnFast 📚🚀  
 **A Smart Learning Platform for Structuring YouTube Playlists**  
 
