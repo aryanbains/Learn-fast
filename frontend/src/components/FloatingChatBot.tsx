@@ -1,4 +1,3 @@
-// components/ScheduleChatBot.tsx code
 "use client";
 import { useState, useRef, useEffect } from "react";
 import * as Icons from "lucide-react";
@@ -12,6 +11,11 @@ interface Message {
   options?: string[];
   isVideoList?: boolean;
   videos?: { title: string; id: string }[];
+}
+
+interface ChatMessage {
+  role: string;
+  content: string;
 }
 
 interface ChatBotProps {
@@ -31,7 +35,8 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
-  const [chatMode, setChatMode] = useState<'video' | 'general' | null>(null);
+  const [chatMode, setChatMode] = useState<"video" | "general" | null>(null);
+  const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize chat when opened
@@ -43,93 +48,138 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
           text: "Hello! How can I help you today?",
           isUser: false,
           isOptions: true,
-          options: [
-            "Ask about specific video",
-            "Ask general questions"
-          ]
-        }
+          options: ["Ask about specific video", "Ask general questions"],
+        },
+      ]);
+      // Initialize conversation history with system message
+      setConversationHistory([
+        {
+          role: "system",
+          content: "You are a helpful assistant.",
+        },
       ]);
     }
-  }, [isOpen]);
+  }, [isOpen, messages.length]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleOptionSelect = async (option: string) => {
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      text: option,
-      isUser: true
-    }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: option,
+        isUser: true,
+      },
+    ]);
 
     if (option === "Ask about specific video") {
-      setChatMode('video');
-      // Get all videos from schedule
-      const allVideos = schedule?.schedule_data.flatMap(day => 
-        day.videos.map(video => ({
-          title: video.title,
-          id: video.link
-        }))
-      ) || [];
+      setChatMode("video");
+      const allVideos =
+        schedule?.schedule_data.flatMap((day) =>
+          day.videos.map((video) => ({
+            title: video.title,
+            id: video.link,
+          }))
+        ) || [];
 
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        text: "Please select a video to ask questions about:",
-        isUser: false,
-        isVideoList: true,
-        videos: allVideos
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: "Please select a video to ask questions about:",
+          isUser: false,
+          isVideoList: true,
+          videos: allVideos,
+        },
+      ]);
     } else {
-      setChatMode('general');
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        text: "You can ask me any general question. How can I help?",
-        isUser: false
-      }]);
+      setChatMode("general");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: "You can ask me any general question. How can I help?",
+          isUser: false,
+        },
+      ]);
+      // Reset conversation history for general mode
+      setConversationHistory([
+        {
+          role: "system",
+          content: "You are a helpful assistant.",
+        },
+      ]);
     }
   };
 
   const handleVideoSelect = async (videoTitle: string) => {
     setSelectedVideo(videoTitle);
-    setMessages(prev => [
+    
+    // Set video-specific conversation history
+    setConversationHistory([
+      {
+        role: "system",
+        content: `You are a helpful assistant. The user is asking about a video titled "${videoTitle}". Please provide information and answer questions about this specific video. If you don't have specific information about the video content, you can ask the user for more details or clarification.`,
+      },
+    ]);
+
+    setMessages((prev) => [
       ...prev,
       {
         id: Date.now(),
         text: `Selected: ${videoTitle}`,
-        isUser: true
+        isUser: true,
       },
       {
         id: Date.now() + 1,
         text: `I'll answer questions specifically about "${videoTitle}". What would you like to know?`,
-        isUser: false
-      }
+        isUser: false,
+      },
     ]);
   };
-
   const simulateTypingResponse = async (response: string) => {
     const typingMessage: Message = {
       id: Date.now(),
       text: "",
       isUser: false,
-      isTyping: true
+      isTyping: true,
     };
 
-    setMessages(prev => [...prev, typingMessage]);
-    
+    setMessages((prev) => [...prev, typingMessage]);
+
     for (let i = 0; i < response.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 20));
-      setMessages(prev => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      setMessages((prev) => {
         const last = prev[prev.length - 1];
-        if (last.isTyping) {
+        if (last && last.isTyping) {
           return [
             ...prev.slice(0, -1),
-            { ...last, text: response.slice(0, i + 1), isTyping: false }
+            {
+              ...last,
+              text: response.slice(0, i + 1),
+            },
           ];
         }
         return prev;
       });
     }
+
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.isTyping) {
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...last,
+            isTyping: false,
+          },
+        ];
+      }
+      return prev;
+    });
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -137,33 +187,60 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
     if (!inputMessage.trim() || isLoading) return;
 
     const userMessage = inputMessage.trim();
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
-      { id: Date.now(), text: userMessage, isUser: true }
+      { id: Date.now(), text: userMessage, isUser: true },
     ]);
     setInputMessage("");
 
     setIsLoading(true);
     try {
-      const response = await fetch('https://python-backend-9i5a.onrender.com/api/chat', {
-        method: 'POST',
+      // Add user message to conversation history
+      const newHistory = [
+        ...conversationHistory,
+        { 
+          role: "user", 
+          content: chatMode === 'video' && selectedVideo
+            ? `Regarding the video "${selectedVideo}": ${userMessage}`
+            : userMessage 
+        }
+      ];
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          message: userMessage,
-          videoTitle: selectedVideo,
-          mode: chatMode
-        })
+          model: "gpt-3.5-turbo",
+          messages: newHistory,
+          temperature: 0.7,
+          max_tokens: 500,
+        }),
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
+      if (!response.ok) throw new Error("Failed to get response from OpenAI");
 
       const data = await response.json();
-      await simulateTypingResponse(data.response);
+      const assistantText = data.choices?.[0]?.message?.content || "";
+
+      if (!assistantText) {
+        throw new Error("No content returned from OpenAI");
+      }
+
+      // Add assistant response to conversation history
+      setConversationHistory([
+        ...newHistory,
+        { role: "assistant", content: assistantText }
+      ]);
+
+      await simulateTypingResponse(assistantText);
     } catch (error) {
-      await simulateTypingResponse("I apologize, but I'm having trouble connecting to the server. Please try again later.");
+      console.error('OpenAI API error:', error);
+      await simulateTypingResponse(
+        "I apologize, but I'm having trouble connecting to the server. Please try again later."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -177,19 +254,13 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
     <div className="fixed bottom-6 right-6 z-50">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`p-4 bg-indigo-600 text-white rounded-full shadow-xl 
-          hover:bg-indigo-700 transition-all transform hover:scale-105 duration-300`}
+        className="p-4 bg-indigo-600 text-white rounded-full shadow-xl hover:bg-indigo-700 transition-all transform hover:scale-105 duration-300"
       >
-        {isOpen ? (
-          <Icons.X size={24} />
-        ) : (
-          <Icons.MessageSquare size={24} />
-        )}
+        {isOpen ? <Icons.X size={24} /> : <Icons.MessageSquare size={24} />}
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-16 right-0 w-96 h-[600px] bg-gray-900 
-          rounded-lg shadow-2xl flex flex-col overflow-hidden">
+        <div className="absolute bottom-16 right-0 w-96 h-[600px] bg-gray-900 rounded-lg shadow-2xl flex flex-col overflow-hidden">
           <div className="p-4 bg-indigo-600 text-white flex items-center gap-3">
             <Icons.Bot className="text-white" />
             <h3 className="font-semibold">AI Assistant</h3>
@@ -205,8 +276,7 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
                       <button
                         key={option}
                         onClick={() => handleOptionSelect(option)}
-                        className="w-full p-3 bg-indigo-600 text-white rounded-lg
-                          hover:bg-indigo-700 transition-colors text-left"
+                        className="w-full p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-left"
                       >
                         {option}
                       </button>
@@ -220,8 +290,7 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
                         <button
                           key={video.id}
                           onClick={() => handleVideoSelect(video.title)}
-                          className="w-full p-3 bg-gray-800 text-white rounded-lg
-                            hover:bg-gray-700 transition-colors text-left"
+                          className="w-full p-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-left"
                         >
                           {video.title}
                         </button>
@@ -230,11 +299,13 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
                   </div>
                 ) : (
                   <div className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-lg p-3 ${
-                      message.isUser 
-                        ? "bg-indigo-600 text-white" 
-                        : "bg-gray-800 text-white"
-                    }`}>
+                    <div
+                      className={`max-w-[85%] rounded-lg p-3 ${
+                        message.isUser
+                          ? "bg-indigo-600 text-white"
+                          : "bg-gray-800 text-white"
+                      }`}
+                    >
                       {message.isTyping ? (
                         <div className="flex items-center gap-2">
                           <Icons.Loader2 className="animate-spin" size={16} />
@@ -250,7 +321,7 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          <form 
+          <form
             onSubmit={handleSendMessage}
             className="p-4 border-t border-gray-800 bg-gray-900"
           >
@@ -260,15 +331,13 @@ export default function ScheduleChatBot({ schedule }: ChatBotProps) {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 placeholder="Type your message..."
-                className="flex-1 rounded-lg px-4 py-2 text-sm bg-gray-800 text-white
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 border-none"
-                disabled={isLoading || (!chatMode)}
+                className="flex-1 rounded-lg px-4 py-2 text-sm bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 border-none"
+                disabled={isLoading || !chatMode}
               />
               <button
                 type="submit"
-                className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 
-                  disabled:opacity-50 transition-colors"
-                disabled={isLoading || (!chatMode)}
+                className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                disabled={isLoading || !chatMode}
               >
                 <Icons.Send size={18} />
               </button>
