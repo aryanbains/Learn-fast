@@ -78,4 +78,3 @@ This project is open-source under the MIT License.
 
 💡 Empowering Smart Learning, One Playlist at a Time!
 🚀 Start Your Learning Journey with LearnFast Today!
->>>>>>> 509148d07d2b8531a3e8daabe0752d0ac1726b89
